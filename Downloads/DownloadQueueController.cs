@@ -1,8 +1,10 @@
 ﻿using Playnite.SDK;
 using Playnite.SDK.Plugins;
+using Playnite.SDK.Models;
 using SharpCompress.Archives;
 using SharpCompress.Common;
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -190,6 +192,37 @@ namespace RomM.Downloads
                     ExtractArchiveWithEntryProgress(req.GamePath, req.InstallDir, item, ct);
                 }
                 try { File.Delete(req.GamePath); } catch { }
+
+                // Run "Create Desktop Shortcut.bat" if present in the extracted folder
+                var shortcutScript = Path.Combine(req.InstallDir, "Create Desktop Shortcut.bat");
+                if (File.Exists(shortcutScript))
+                {
+                    try
+                    {
+                        Logger.Info($"Running post-extract script: {shortcutScript}");
+                        using (var proc = Process.Start(new ProcessStartInfo
+                        {
+                            FileName = shortcutScript,
+                            WorkingDirectory = req.InstallDir,
+                            UseShellExecute = true,
+                            WindowStyle = ProcessWindowStyle.Normal
+                        }))
+                        {
+                            proc?.WaitForExit();
+                        }
+
+                        // Parse the bat to discover exe-based play actions
+                        req.DiscoveredGameActions = ParseBatForGameActions(shortcutScript, req.InstallDir);
+                        if (req.DiscoveredGameActions != null && req.DiscoveredGameActions.Count > 0)
+                        {
+                            Logger.Info($"Discovered {req.DiscoveredGameActions.Count} play action(s) from bat script.");
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        Logger.Warn($"Post-extract script failed: {ex.Message}");
+                    }
+                }
             }
 
             // Build rom list + signal installed
@@ -212,6 +245,71 @@ namespace RomM.Downloads
             return ArchiveFactory.IsArchive(filePath, out var type);
         }
 
+        private List<GameAction> ParseBatForGameActions(string batPath, string installDir)
+        {
+            var actions = new List<GameAction>();
+            try
+            {
+                // $base in the bat is the *parent* of the game folder
+                var basePath = installDir.TrimEnd('\\', '/');
+
+                var lines = File.ReadAllLines(batPath);
+                string pendingName = null;
+
+                foreach (var rawLine in lines)
+                {
+                    var line = rawLine.Trim();
+
+                    // Detect: echo $lnk = $ws.CreateShortcut($desktop + '\Downwell.lnk')
+                    if (line.StartsWith("echo $lnk = $ws.CreateShortcut", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var m = System.Text.RegularExpressions.Regex.Match(
+                            line,
+                            @"['\\""](?<name>[^'\\""]+)\.lnk['\\""]",
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        pendingName = m.Success ? m.Groups["name"].Value : null;
+                        continue;
+                    }
+
+                    // Detect: echo $lnk.TargetPath = $base + '\Downwell\Downwell.exe'
+                    if (line.StartsWith("echo $lnk.TargetPath", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var m = System.Text.RegularExpressions.Regex.Match(
+                            line,
+                            @"\$base\s*\+\s*['""](?<rel>[^'""]+)['""]",
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                        if (m.Success)
+                        {
+                            var rel = m.Groups["rel"].Value.TrimStart('\\', '/');
+                            var exePath = Path.Combine(basePath, rel);
+                            var actionName = !string.IsNullOrEmpty(pendingName)
+                                ? pendingName
+                                : Path.GetFileNameWithoutExtension(exePath);
+
+                            actions.Add(new GameAction
+                            {
+                                Name = actionName,
+                                Type = GameActionType.File,
+                                Path = exePath,
+                                WorkingDir = Path.GetDirectoryName(exePath),
+                                IsPlayAction = true
+                            });
+
+                            Logger.Info($"  ParseBat → '{actionName}' = {exePath}");
+                        }
+
+                        pendingName = null;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"ParseBatForGameActions exception: {ex.Message}");
+            }
+
+            return actions;
+        }
 
         private void ExtractArchiveWith7z(string pathTo7z, string archivePath, string installDir, DownloadQueueItem item, CancellationToken ct)
         {
