@@ -313,6 +313,72 @@ namespace RomM.Downloads
             return actions;
         }
 
+        private List<GameAction> ParseBatForGameActions(string batPath, string installDir)
+        {
+            var actions = new List<GameAction>();
+            try
+            {
+                // $base in the bat is the *parent* of the game folder
+                var basePath = installDir.TrimEnd('\\', '/');
+
+                var lines = File.ReadAllLines(batPath);
+                string pendingName = null;
+
+                foreach (var rawLine in lines)
+                {
+                    var line = rawLine.Trim();
+
+                    // Detect: echo $lnk = $ws.CreateShortcut($desktop + '\Downwell.lnk')
+                    if (line.StartsWith("echo $lnk = $ws.CreateShortcut", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var m = System.Text.RegularExpressions.Regex.Match(
+                            line,
+                            @"['\\""](?<name>[^'\\""]+)\.lnk['\\""]",
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        pendingName = m.Success ? m.Groups["name"].Value : null;
+                        continue;
+                    }
+
+                    // Detect: echo $lnk.TargetPath = $base + '\Downwell\Downwell.exe'
+                    if (line.StartsWith("echo $lnk.TargetPath", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var m = System.Text.RegularExpressions.Regex.Match(
+                            line,
+                            @"\$base\s*\+\s*['""](?<rel>[^'""]+)['""]",
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                        if (m.Success)
+                        {
+                            var rel = m.Groups["rel"].Value.TrimStart('\\', '/');
+                            var exePath = Path.Combine(basePath, rel);
+                            var actionName = !string.IsNullOrEmpty(pendingName)
+                                ? pendingName
+                                : Path.GetFileNameWithoutExtension(exePath);
+
+                            actions.Add(new GameAction
+                            {
+                                Name = actionName,
+                                Type = GameActionType.File,
+                                Path = exePath,
+                                WorkingDir = Path.GetDirectoryName(exePath),
+                                IsPlayAction = true
+                            });
+
+                            Logger.Info($"  ParseBat → '{actionName}' = {exePath}");
+                        }
+
+                        pendingName = null;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"ParseBatForGameActions exception: {ex.Message}");
+            }
+
+            return actions;
+        }
+
         // 7-Zip extracts into the output dir and drops absolute paths and ".." components unless -spf
         // is passed (we never pass it), but the entry names are checked up front anyway so both
         // extraction paths refuse traversal the same way. Formats SharpCompress cannot open fall back

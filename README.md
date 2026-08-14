@@ -1,23 +1,3 @@
-<!-- trunk-ignore-all(markdownlint/MD033) -->
-<!-- trunk-ignore(markdownlint/MD041) -->
-<div align="center">
-
-  <img src=".github/resources/isotipo.png" height="180px" width="auto" alt="romm-muos logo">
-    <h3 style="font-size: 25px;">
-    A beautiful, powerful, RomM plugin for Playnite.
-  </h3>
-
-<br>
-
-[![license-badge-img]][license-badge]
-[![release-badge-img]][release-badge]
-[![discord-badge-img]][discord-badge]
-
-<!-- [![wiki-badge-img]][wiki] -->
-
-  </div>
-</div>
-
 # Overview
 
 This plugin allows you to import your RomM library into Playnite. It queries the RomM API to create Playnite library entires for each of your games. Installing a game in Playnite will download it from RomM and store it on your system, allowing you to launch it in your emulator of choice.
