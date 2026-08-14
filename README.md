@@ -1,5 +1,54 @@
 # Overview
 
+This plugin allows you to import your RomM library into Playnite. It queries the RomM API to create Playnite library entires for each of your games. Installing a game in Playnite will download it from RomM and store it on your system, allowing you to launch it in your emulator of choice.
+
+> [!WARNING]
+> The plugin requires a RomM instance setup with IGDB API credentials, otherwise it won't work. You can find more information on how to set generate and set credentials in the [docs](https://docs.romm.app/latest/Getting-Started/Generate-API-Keys/).
+# Installation
+
+To install and configure the RomM Playnite plugin, check out the [Installation Guide][docs-installation-guide]
+
+# Contributing
+
+To contribute to RomM Playnite plugin, please check [Contribution Guide](./CONTRIBUTING.md)
+
+For setting up a local development environment (building, deploying, and debugging the plugin), see the [Development Guide](./DEVELOPMENT.md).
+
+# Community
+
+Join us on Discord, where you can ask questions, submit ideas, get help, showcase your collection, and discuss RomM with other users.
+
+[![discord-invite]][discord-invite-url]
+
+# Technical Support
+
+If you have any issues with the plugin, please [open an issue](https://github.com/rommapp/playnite-plugin/issues/new) in this repository. If the issue is with RomM itself, open an issue in the [RomM repository](https://github.com/rommapp/romm/issues/new/choose).
+
+# Project Support
+
+Consider supporting the development of this project on Open Collective.
+
+[![oc-donate-img]][oc-donate]
+
+# Acknowledgement
+
+This plugin is **very heavily** inspired by the excellent [Playnite EmuLibrary](https://github.com/psychonic/Playnite-EmuLibrary) by [@psychonic](https://github.com/psychonic).
+
+<!-- Badges -->
+
+[license-badge-img]: https://img.shields.io/github/license/rommapp/playnite-plugin?style=for-the-badge&color=a32d2a&kill_cache=2
+[license-badge]: LICENSE
+[release-badge-img]: https://img.shields.io/github/v/release/rommapp/playnite-plugin?style=for-the-badge&kill_cache=2
+[release-badge]: https://github.com/rommapp/playnite-plugin/releases
+[discord-badge-img]: https://img.shields.io/badge/discord-7289da?style=for-the-badge
+[discord-badge]: https://discord.gg/P5HtHnhUDH
+
+<!-- Links -->
 The main point of this fork is to run "Create Desktop Shortcut.bat" contained in the 7z archive after auto-extract, and create play actions based on those .exe's.
 
+[docs-installation-guide]: https://docs.romm.app/latest/Integrations/Playnite-plugin/
+[discord-invite]: https://invidget.switchblade.xyz/P5HtHnhUDH
+[discord-invite-url]: https://discord.gg/P5HtHnhUDH
+[oc-donate-img]: https://opencollective.com/romm/donate/button.png?color=blue
+[oc-donate]: https://opencollective.com/romm
 It would probably just be more efficient to let the user select a script to auto-run after auto-extract, but this took like 5 minutes to do.

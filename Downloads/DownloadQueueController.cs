@@ -1,6 +1,7 @@
-﻿using Playnite.SDK;
+using Playnite.SDK;
 using Playnite.SDK.Plugins;
 using Playnite.SDK.Models;
+using RomM.Games;
 using SharpCompress.Archives;
 using SharpCompress.Common;
 using System;
@@ -178,7 +179,8 @@ namespace RomM.Downloads
             }
 
             // Extract if needed (we treat extract as 0..100 in its own bar)
-            if (req.HasMultipleFiles || (req.AutoExtract && IsFileCompressed(req.GamePath)))
+            // Don't extract archives when install flat is enabled
+            if (req.HasMultipleFiles || (req.AutoExtract && IsFileCompressed(req.GamePath) && !req.InstallFlat))
             {
                 item.SetStatus(DownloadStatus.Extracting, "Extracting...");
                 Logger.Info($"Extracting {req.GamePath}...");
@@ -311,6 +313,98 @@ namespace RomM.Downloads
             return actions;
         }
 
+        private List<GameAction> ParseBatForGameActions(string batPath, string installDir)
+        {
+            var actions = new List<GameAction>();
+            try
+            {
+                // $base in the bat is the *parent* of the game folder
+                var basePath = installDir.TrimEnd('\\', '/');
+
+                var lines = File.ReadAllLines(batPath);
+                string pendingName = null;
+
+                foreach (var rawLine in lines)
+                {
+                    var line = rawLine.Trim();
+
+                    // Detect: echo $lnk = $ws.CreateShortcut($desktop + '\Downwell.lnk')
+                    if (line.StartsWith("echo $lnk = $ws.CreateShortcut", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var m = System.Text.RegularExpressions.Regex.Match(
+                            line,
+                            @"['\\""](?<name>[^'\\""]+)\.lnk['\\""]",
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                        pendingName = m.Success ? m.Groups["name"].Value : null;
+                        continue;
+                    }
+
+                    // Detect: echo $lnk.TargetPath = $base + '\Downwell\Downwell.exe'
+                    if (line.StartsWith("echo $lnk.TargetPath", StringComparison.OrdinalIgnoreCase))
+                    {
+                        var m = System.Text.RegularExpressions.Regex.Match(
+                            line,
+                            @"\$base\s*\+\s*['""](?<rel>[^'""]+)['""]",
+                            System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+                        if (m.Success)
+                        {
+                            var rel = m.Groups["rel"].Value.TrimStart('\\', '/');
+                            var exePath = Path.Combine(basePath, rel);
+                            var actionName = !string.IsNullOrEmpty(pendingName)
+                                ? pendingName
+                                : Path.GetFileNameWithoutExtension(exePath);
+
+                            actions.Add(new GameAction
+                            {
+                                Name = actionName,
+                                Type = GameActionType.File,
+                                Path = exePath,
+                                WorkingDir = Path.GetDirectoryName(exePath),
+                                IsPlayAction = true
+                            });
+
+                            Logger.Info($"  ParseBat → '{actionName}' = {exePath}");
+                        }
+
+                        pendingName = null;
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"ParseBatForGameActions exception: {ex.Message}");
+            }
+
+            return actions;
+        }
+
+        // 7-Zip extracts into the output dir and drops absolute paths and ".." components unless -spf
+        // is passed (we never pass it), but the entry names are checked up front anyway so both
+        // extraction paths refuse traversal the same way. Formats SharpCompress cannot open fall back
+        // to 7-Zip's own handling rather than failing a download that used to work.
+        private void EnsureEntriesContained(string archivePath, string installDir)
+        {
+            try
+            {
+                using (var archive = ArchiveFactory.Open(archivePath))
+                {
+                    foreach (var entry in archive.Entries.Where(e => !e.IsDirectory))
+                    {
+                        RomMInstallPaths.ResolveWithin(installDir, entry.Key);
+                    }
+                }
+            }
+            catch (ArgumentException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Logger.Warn($"Could not inspect {archivePath} before extraction: {ex.Message}");
+            }
+        }
+
         private void ExtractArchiveWith7z(string pathTo7z, string archivePath, string installDir, DownloadQueueItem item, CancellationToken ct)
         {
             if (archivePath == null || archivePath.Contains("../") || archivePath.Contains(@"..\"))
@@ -321,6 +415,8 @@ namespace RomM.Downloads
             {
                 throw new ArgumentException("Invalid install directory path");
             }
+
+            EnsureEntriesContained(archivePath, installDir);
 
             ProcessStartInfo startInfo = new ProcessStartInfo
             {
@@ -354,11 +450,17 @@ namespace RomM.Downloads
                 {
                     ct.ThrowIfCancellationRequested();
 
-                    entry.WriteToDirectory(installDir, new ExtractionOptions
+                    // Entry names come from the downloaded archive, so they are untrusted: handing a
+                    // "../" or rooted key to ExtractFullPath would write outside installDir. Resolve
+                    // and verify each destination, then copy the entry there ourselves.
+                    var destination = RomMInstallPaths.ResolveWithin(installDir, entry.Key);
+                    Directory.CreateDirectory(Path.GetDirectoryName(destination));
+
+                    using (var entryStream = entry.OpenEntryStream())
+                    using (var file = File.Create(destination))
                     {
-                        ExtractFullPath = true,
-                        Overwrite = true
-                    });
+                        entryStream.CopyTo(file);
+                    }
 
                     done++;
                     item.SetProgress(done, total, false);
@@ -386,7 +488,8 @@ namespace RomM.Downloads
                 SafeDeleteFileWithRetry(req.GamePath);
 
                 // delete folder (recursively) if it exists
-                SafeDeleteDirectoryWithRetry(req.InstallDir);
+                if(!req.InstallFlat)
+                    SafeDeleteDirectoryWithRetry(req.InstallDir);
             }
             catch (Exception ex)
             {
