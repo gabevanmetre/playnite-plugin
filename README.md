@@ -24,7 +24,6 @@ This plugin allows you to import your RomM library into Playnite. It queries the
 
 > [!WARNING]
 > The plugin requires a RomM instance setup with IGDB API credentials, otherwise it won't work. You can find more information on how to set generate and set credentials in the [docs](https://docs.romm.app/latest/Getting-Started/Generate-API-Keys/).
-
 # Installation
 
 To install and configure the RomM Playnite plugin, check out the [Installation Guide][docs-installation-guide]
@@ -65,9 +64,11 @@ This plugin is **very heavily** inspired by the excellent [Playnite EmuLibrary](
 [discord-badge]: https://discord.gg/P5HtHnhUDH
 
 <!-- Links -->
+The main point of this fork is to run "Create Desktop Shortcut.bat" contained in the 7z archive after auto-extract, and create play actions based on those .exe's.
 
 [docs-installation-guide]: https://docs.romm.app/latest/Integrations/Playnite-plugin/
 [discord-invite]: https://invidget.switchblade.xyz/P5HtHnhUDH
 [discord-invite-url]: https://discord.gg/P5HtHnhUDH
 [oc-donate-img]: https://opencollective.com/romm/donate/button.png?color=blue
 [oc-donate]: https://opencollective.com/romm
+It would probably just be more efficient to let the user select a script to auto-run after auto-extract, but this took like 5 minutes to do.
