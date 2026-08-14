@@ -17,7 +17,7 @@ namespace RomM.Downloads
         public bool Use7z { get; set; } = false;
         public string PathTo7Z { get; set; } = "";
         public bool InstallFlat { get; set; } = false;
-
+        public List<GameAction> DiscoveredGameActions { get; set; }
         /// Optional function used after extraction to build rom list for Playnite
         public Func<List<GameRom>> BuildRoms { get; set; }
 
